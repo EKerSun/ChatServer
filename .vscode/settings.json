@@ -69,6 +69,11 @@
         "semaphore": "cpp",
         "stop_token": "cpp",
         "thread": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "chrono": "cpp",
+        "charconv": "cpp",
+        "list": "cpp",
+        "format": "cpp",
+        "shared_mutex": "cpp"
     }
 }

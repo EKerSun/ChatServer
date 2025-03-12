@@ -10,6 +10,12 @@ ChatService::ChatService()
     msg_handler_map_.insert({LOGIN_MSG, std::bind(&ChatService::Login, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     msg_handler_map_.insert({ADD_FRIEND_MSG, std::bind(&ChatService::AddFriend, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     msg_handler_map_.insert({DELETE_FRIEND_MSG, std::bind(&ChatService::DeleteFriend, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    msg_handler_map_.insert({ONE_CHAT_MSG, std::bind(&ChatService::OneChat, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    msg_handler_map_.insert({ADD_FRIEND_MSG, std::bind(&ChatService::AddFriend, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    // 群组业务管理相关事件处理回调注册
+    msg_handler_map_.insert({CREATE_GROUP_MSG, std::bind(&ChatService::CreateGroup, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    msg_handler_map_.insert({ADD_GROUP_MSG, std::bind(&ChatService::AddGroup, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    msg_handler_map_.insert({GROUP_CHAT_MSG, std::bind(&ChatService::GroupChat, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
 }
 
 // 获取单例对象的接口函数
@@ -82,12 +88,37 @@ void ChatService::Login(const muduo::net::TcpConnectionPtr &conn, nlohmann::json
                 }
                 // 登录成功，更新用户状态信息
                 user.SetState("online");
+                usermodel_.updateState(user);
+
                 nlohmann::json response;
                 response["msgid"] = LOGIN_MSG_ACK;
                 response["errno"] = 0;
-                response["errmsg"] = "Login success!";
                 response["id"] = id;
                 response["name"] = user.GetName();
+
+                // 查询该用户的好友信息并返回
+                std::vector<User> userVec = friend_model_.Query(id);
+                if (!userVec.empty())
+                {
+                    std::vector<std::string> friend_info;
+                    for (User &user : userVec)
+                    {
+                        nlohmann::json user_info;
+                        user_info["id"] = user.GetId();
+                        user_info["name"] = user.GetName();
+                        user_info["state"] = user.GetState();
+                        friend_info.push_back(user_info.dump());
+                    }
+                    response["friends"] = friend_info;
+                }
+                // 查询该用户的离线消息并返回
+                std::vector<std::string> msg_vec = offline_msg_model_.Query(id);
+                if (!msg_vec.empty())
+                {
+                    response["offlinemsg"] = msg_vec;
+                    // 读取该用户的离线消息后，把该用户的所有离线消息删除掉
+                    offline_msg_model_.Remove(id);
+                }
 
                 conn->send(response.dump());
             }
@@ -136,7 +167,7 @@ void ChatService::AddFriend(const muduo::net::TcpConnectionPtr &conn, nlohmann::
     int friendid = js["friendid"].get<int>();
 
     // 存储好友信息
-    if (!friendModel_.Insert(userid, friendid))
+    if (!friend_model_.Insert(userid, friendid))
     {
         nlohmann::json response;
         response["msgid"] = ADD_FRIEND_MSG_ACK;
@@ -160,7 +191,7 @@ void ChatService::DeleteFriend(const muduo::net::TcpConnectionPtr &conn, nlohman
     int userid = js["id"].get<int>();
     int friendid = js["friendid"].get<int>();
 
-    if (!friendModel_.Delete(userid, friendid))
+    if (!friend_model_.Delete(userid, friendid))
     {
         nlohmann::json response;
         response["msgid"] = DELETE_FRIEND_MSG_ACK;
@@ -175,6 +206,98 @@ void ChatService::DeleteFriend(const muduo::net::TcpConnectionPtr &conn, nlohman
         response["errno"] = 0;
         response["errmsg"] = "Delete friend success!";
         conn->send(response.dump());
+    }
+}
+void ChatService::OneChat(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp)
+{
+    int toid = js["toid"].get<int>();
+
+    {
+        std::lock_guard<std::mutex> lock(connection_mutex_);
+        auto it = user_connection_map_.find(toid);
+        if (it != user_connection_map_.end())
+        {
+            // toid在线，转发消息   服务器主动推送消息给toid用户
+            it->second->send(js.dump());
+            return;
+        }
+    }
+    // toid不在线，存储离线消息
+    offline_msg_model_.Insert(toid, js.dump());
+}
+
+// 创建群组业务
+void ChatService::CreateGroup(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp)
+{
+    int userid = js["id"].get<int>();
+    std::string name = js["groupname"];
+    std::string desc = js["groupdesc"];
+    // 存储新创建的群组信息
+    Group group(-1, name, desc);
+
+    if (!group_model_.CreateGroup(group))
+    {
+        nlohmann::json response;
+        response["msgid"] = CREATE_GROUP_MSG_ACK;
+        response["errno"] = 1;
+        response["errmsg"] = "create group error!";
+        conn->send(response.dump());
+        // 存储群组创建人信息
+    }
+    else
+    {
+        group_model_.AddGroup(userid, group.GetID(), "creator");
+        nlohmann::json response;
+        response["msgid"] = CREATE_GROUP_MSG_ACK;
+        response["errno"] = 0;
+        response["errmsg"] = "create group success!";
+        conn->send(response.dump());
+    }
+}
+
+// 加入群组业务
+void ChatService::AddGroup(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp)
+{
+    int userid = js["id"].get<int>();
+    int groupid = js["groupid"].get<int>();
+    if (!group_model_.AddGroup(userid, groupid, "normal"))
+    {
+        nlohmann::json response;
+        response["msgid"] = ADD_GROUP_MSG_ACK;
+        response["errno"] = 1;
+        response["errmsg"] = "add group error!";
+        conn->send(response.dump());
+    }
+    else
+    {
+        nlohmann::json response;
+        response["msgid"] = ADD_GROUP_MSG_ACK;
+        response["errno"] = 0;
+        response["errmsg"] = "add group success!";
+        conn->send(response.dump());
+    }
+}
+
+// 群组聊天业务
+void ChatService::GroupChat(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp)
+{
+    int userid = js["id"].get<int>();
+    int groupid = js["groupid"].get<int>();
+    std::vector<int> userid_vec = group_model_.QueryGroupUsers(userid, groupid);
+    std::lock_guard<std::mutex> lock(connection_mutex_);
+    for (int id : userid_vec)
+    {
+        auto it = user_connection_map_.find(id);
+        if (it != user_connection_map_.end())
+        {
+            // 转发群消息
+            it->second->send(js.dump());
+        }
+        else
+        {
+            // 存储离线群消息
+            offline_msg_model_.Insert(id, js.dump());
+        }
     }
 }
 

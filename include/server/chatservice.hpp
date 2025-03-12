@@ -9,7 +9,9 @@
 #include <muduo/net/TcpServer.h>
 #include <nlohmann/json.hpp>
 #include <mutex>
-#include"friendmodel.hpp"
+#include "friendmodel.hpp"
+#include "offlinemessagemodel.hpp"
+#include "groupmodel.hpp"
 
 // 消息处理函数类，作用是解耦合网络模块和业务模块
 using MsgHandler = std::function<void(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp)>;
@@ -27,7 +29,21 @@ public:
     void AddFriend(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
     // 删除好友业务
     void DeleteFriend(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
-
+    // 一对一聊天业务
+    void OneChat(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
+    // 创建群组业务
+    void CreateGroup(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
+    // 加入群组业务
+    void AddGroup(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
+    // 群组聊天业务
+    void GroupChat(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
+    // 处理注销业务
+    void loginout(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
+    // 处理客户端异常退出
+    void clientCloseException(muduo::net::TcpConnectionPtr &conn);
+    // 服务器异常，业务重置方法
+    void reset();
+    // 获取消息对应的处理器
 
     // 获取消息对应的处理器
     MsgHandler GetHandler(int msgid);
@@ -43,7 +59,11 @@ private:
     // 互斥锁
     std::mutex connection_mutex_;
     // 存储好友信息的操作类对象
-    FriendModel friendModel_;
+    FriendModel friend_model_;
+    // 存储离线消息
+    OfflineMsgModel offline_msg_model_;
+    // 存储群组
+    GroupModel group_model_;
 };
 
 #endif
