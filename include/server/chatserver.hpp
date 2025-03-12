@@ -1,5 +1,5 @@
 /**
- * 基于muduo网络库的聊天服务的Server, 提供TCP接口服务
+ * 基于muduo网络库的聊天服务的Server,提供基础的网络服务
  */
 
 #ifndef CHATSERVER_H
