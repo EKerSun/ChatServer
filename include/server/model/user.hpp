@@ -11,15 +11,15 @@ class User
 public:
     User(int id = -1, std::string name = "", std::string password = "", std::string state = "offline");
     // 设置方法
-    void setId(int id);
-    void setName(std::string name);
-    void setPassword(std::string password);
-    void setState(std::string state);
+    void SetID(int id);
+    void SetName(std::string name);
+    void SetPassword(std::string password);
+    void SetState(std::string state);
     // 查询方法
-    int getId();
-    std::string getName();
-    std::string getPassword();
-    std::string getState();
+    int GetId();
+    std::string GetName();
+    std::string GetPassword();
+    std::string GetState();
 
 private:
     int id_;

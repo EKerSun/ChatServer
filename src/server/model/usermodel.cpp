@@ -7,14 +7,14 @@ bool UserModel::insert(User &user)
     // 组装sql语句
     char sql[1024] = {0};
     sprintf(sql, "insert into user(name, password, state) values('%s', '%s', '%s')",
-            user.getName().c_str(), user.getPassword().c_str(), user.getState().c_str());
+            user.GetName().c_str(), user.GetPassword().c_str(), user.GetState().c_str());
     MySQL mysql;
     if (mysql.connect())
     {
         if (mysql.update(sql))
         {
             // 获取插入成功的用户数据生成的主键id
-            user.setId(mysql_insert_id(mysql.getConn()));
+            user.SetID(mysql_insert_id(mysql.getConn()));
             return true;
         }
     }
@@ -37,10 +37,10 @@ User UserModel::query(int id)
             if (row != nullptr)
             {
                 User user;
-                user.setId(atoi(row[0]));
-                user.setName(row[1]);
-                user.setPassword(row[2]);
-                user.setState(row[3]);
+                user.SetID(atoi(row[0]));
+                user.SetName(row[1]);
+                user.SetPassword(row[2]);
+                user.SetState(row[3]);
                 mysql_free_result(res);
                 return user;
             }
@@ -54,7 +54,7 @@ bool UserModel::updateState(User user)
     // 组装sql语句
     char sql[1024] = {0};
     sprintf(sql, "update user set state = '%s' where id = %d",
-            user.getState().c_str(), user.getId());
+            user.GetState().c_str(), user.GetId());
     MySQL mysql;
     if (mysql.connect())
     {

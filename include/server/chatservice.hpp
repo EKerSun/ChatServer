@@ -8,6 +8,8 @@
 #include <unordered_map>
 #include <muduo/net/TcpServer.h>
 #include <nlohmann/json.hpp>
+#include <mutex>
+#include"friendmodel.hpp"
 
 // 消息处理函数类，作用是解耦合网络模块和业务模块
 using MsgHandler = std::function<void(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp)>;
@@ -16,14 +18,19 @@ class ChatService
 {
 public:
     // 获取单例对象的接口函数
-    static ChatService *instance();
+    static ChatService *Instance();
     // 处理登录业务
-    void login(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
+    void Login(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
     // 处理注册业务
-    void reg(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
+    void Register(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
+    // 添加好友业务
+    void AddFriend(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
+    // 删除好友业务
+    void DeleteFriend(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
+
 
     // 获取消息对应的处理器
-    MsgHandler getHandler(int msgid);
+    MsgHandler GetHandler(int msgid);
 
 private:
     ChatService();
@@ -31,6 +38,12 @@ private:
     std::unordered_map<int, MsgHandler> msg_handler_map_;
     // 数据操作类对象
     UserModel usermodel_;
+    // 存储在线用户的通信连接
+    std::unordered_map<int, muduo::net::TcpConnectionPtr> user_connection_map_;
+    // 互斥锁
+    std::mutex connection_mutex_;
+    // 存储好友信息的操作类对象
+    FriendModel friendModel_;
 };
 
 #endif

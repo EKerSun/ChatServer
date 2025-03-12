@@ -43,6 +43,6 @@ void ChatServer::onMessage(const muduo::net::TcpConnectionPtr &conn,
     nlohmann::json js = nlohmann::json::parse(buf);
     // 通过js["msgid"] 获取业务handler conn json time
     // 完全解耦网络模块和业务模块
-    auto msgHandler = ChatService::instance()->getHandler(js["msgid"].get<int>());
+    auto msgHandler = ChatService::Instance()->GetHandler(js["msgid"].get<int>());
     msgHandler(conn, js, time);
 }
