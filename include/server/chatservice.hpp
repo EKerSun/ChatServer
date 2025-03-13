@@ -12,6 +12,7 @@
 #include "friendmodel.hpp"
 #include "offlinemessagemodel.hpp"
 #include "groupmodel.hpp"
+#include "redis.hpp"
 
 // 消息处理函数类，作用是解耦合网络模块和业务模块
 using MsgHandler = std::function<void(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp)>;
@@ -43,10 +44,11 @@ public:
     void ClientCloseException(const muduo::net::TcpConnectionPtr &conn);
     // 服务器异常，业务重置方法
     void Reset();
-    // 获取消息对应的处理器
 
     // 获取消息对应的处理器
     MsgHandler GetHandler(int msgid);
+    // 从redis消息队列中获取订阅的消息
+    void HandleRedisSubscribeMessage(int, std::string);
 
 private:
     ChatService();
@@ -64,6 +66,8 @@ private:
     OfflineMsgModel offline_msg_model_;
     // 存储群组
     GroupModel group_model_;
+    // redis操作对象
+    Redis redis_;
 };
 
 #endif

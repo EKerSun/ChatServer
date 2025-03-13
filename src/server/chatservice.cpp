@@ -18,6 +18,11 @@ ChatService::ChatService()
     msg_handler_map_.insert({GROUP_CHAT_MSG, std::bind(&ChatService::GroupChat, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     // 下线
     msg_handler_map_.insert({LOGINOUT_MSG, std::bind(&ChatService::LoginOut, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    if (redis_.connect())
+    {
+        // 设置上报消息的回调
+        redis_.init_notify_handler(std::bind(&ChatService::HandleRedisSubscribeMessage, this, std::placeholders::_1, std::placeholders::_2));
+    }
 }
 
 // 获取单例对象的接口函数
@@ -88,6 +93,8 @@ void ChatService::Login(const muduo::net::TcpConnectionPtr &conn, nlohmann::json
                     std::lock_guard<std::mutex> lock(connection_mutex_);
                     user_connection_map_.insert({id, conn});
                 }
+                // id用户登录成功后，向redis订阅channel(id)
+                redis_.subscribe(id); 
                 // 登录成功，更新用户状态信息
                 user.SetState("online");
                 usermodel_.updateState(user);
@@ -250,6 +257,16 @@ void ChatService::OneChat(const muduo::net::TcpConnectionPtr &conn, nlohmann::js
             return;
         }
     }
+
+    // 查询toid是否在线 
+    User user = usermodel_.query(toid);
+    if (user.GetState() == "online")
+    {
+        redis_.publish(toid, js.dump());
+        return;
+    }
+
+
     // toid不在线，存储离线消息
     offline_msg_model_.Insert(toid, js.dump());
 }
@@ -323,8 +340,16 @@ void ChatService::GroupChat(const muduo::net::TcpConnectionPtr &conn, nlohmann::
         }
         else
         {
-            // 存储离线群消息
-            offline_msg_model_.Insert(id, js.dump());
+            User user = usermodel_.query(id);
+            if (user.GetState() == "online")
+            {
+                redis_.publish(id, js.dump());
+            }
+            else
+            {
+                // 存储离线群消息
+                offline_msg_model_.Insert(id, js.dump());
+            }
         }
     }
 }
@@ -359,6 +384,8 @@ void ChatService::LoginOut(const muduo::net::TcpConnectionPtr &conn, nlohmann::j
             user_connection_map_.erase(it);
         }
     }
+    // 用户注销，相当于就是下线，在redis中取消订阅通道
+    redis_.unsubscribe(userid); 
     // 更新用户的状态信息
     User user(userid, "", "", "offline");
     usermodel_.updateState(user);
@@ -388,7 +415,24 @@ void ChatService::ClientCloseException(const muduo::net::TcpConnectionPtr &conn)
             }
         }
     }
+    // 用户注销，相当于就是下线，在redis中取消订阅通道
+    redis_.unsubscribe(user.GetID()); 
     // 更新用户的状态信息为离线
     user.SetState("offline");
     usermodel_.updateState(user);
+}
+
+// 从redis消息队列中获取订阅的消息
+void ChatService::HandleRedisSubscribeMessage(int userid, std::string msg)
+{
+    std::lock_guard<std::mutex> lock(connection_mutex_);
+    auto it = user_connection_map_.find(userid);
+    if (it != user_connection_map_.end())
+    {
+        it->second->send(msg);
+        return;
+    }
+
+    // 存储该用户的离线消息
+    offline_msg_model_.Insert(userid, msg);
 }
