@@ -44,7 +44,7 @@ std::vector<User> FriendModel::Query(int userid)
     sprintf(sql, "select a.id, a.name, a.state from user a inner join friendships b on case\
             when b.user_id1 = %d then b.user_id2 \
             when b.user_id2 = %d then b.user_id1 \
-            end where b.user_id1 = %d or b.user_id1 = %d",
+            end where b.user_id1 = %d or b.user_id2 = %d",
             userid, userid, userid, userid);
     std::vector<User> vec;
     MySQL mysql;

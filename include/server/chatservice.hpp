@@ -38,11 +38,11 @@ public:
     // 群组聊天业务
     void GroupChat(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
     // 处理注销业务
-    void loginout(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
+    void LoginOut(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp);
     // 处理客户端异常退出
-    void clientCloseException(muduo::net::TcpConnectionPtr &conn);
+    void ClientCloseException(const muduo::net::TcpConnectionPtr &conn);
     // 服务器异常，业务重置方法
-    void reset();
+    void Reset();
     // 获取消息对应的处理器
 
     // 获取消息对应的处理器

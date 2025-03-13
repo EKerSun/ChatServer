@@ -74,6 +74,13 @@
         "charconv": "cpp",
         "list": "cpp",
         "format": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "climits": "cpp",
+        "csignal": "cpp",
+        "bitset": "cpp",
+        "set": "cpp",
+        "unordered_set": "cpp",
+        "regex": "cpp",
+        "ios": "cpp"
     }
 }

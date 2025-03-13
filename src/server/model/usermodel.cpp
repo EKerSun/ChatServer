@@ -1,7 +1,7 @@
 #include "usermodel.hpp"
 #include "db.hpp"
 
-//User表的增加方法
+// User表的增加方法
 bool UserModel::insert(User &user)
 {
     // 组装sql语句
@@ -54,7 +54,7 @@ bool UserModel::updateState(User user)
     // 组装sql语句
     char sql[1024] = {0};
     sprintf(sql, "update user set state = '%s' where id = %d",
-            user.GetState().c_str(), user.GetId());
+            user.GetState().c_str(), user.GetID());
     MySQL mysql;
     if (mysql.connect())
     {

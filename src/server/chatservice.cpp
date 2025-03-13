@@ -16,6 +16,8 @@ ChatService::ChatService()
     msg_handler_map_.insert({CREATE_GROUP_MSG, std::bind(&ChatService::CreateGroup, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     msg_handler_map_.insert({ADD_GROUP_MSG, std::bind(&ChatService::AddGroup, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     msg_handler_map_.insert({GROUP_CHAT_MSG, std::bind(&ChatService::GroupChat, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    // 下线
+    msg_handler_map_.insert({LOGINOUT_MSG, std::bind(&ChatService::LoginOut, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
 }
 
 // 获取单例对象的接口函数
@@ -40,7 +42,7 @@ void ChatService::Login(const muduo::net::TcpConnectionPtr &conn, nlohmann::json
     std::string password = js["password"];
     User user = usermodel_.query(id);
 
-    if (id == -1 || user.GetId() == -1)
+    if (id == -1 || user.GetID() == -1)
     {
         // 用户ID不存在, 查询用户表时返回的用户ID为-1
         nlohmann::json response;
@@ -104,7 +106,7 @@ void ChatService::Login(const muduo::net::TcpConnectionPtr &conn, nlohmann::json
                     for (User &user : userVec)
                     {
                         nlohmann::json user_info;
-                        user_info["id"] = user.GetId();
+                        user_info["id"] = user.GetID();
                         user_info["name"] = user.GetName();
                         user_info["state"] = user.GetState();
                         friend_info.push_back(user_info.dump());
@@ -118,6 +120,32 @@ void ChatService::Login(const muduo::net::TcpConnectionPtr &conn, nlohmann::json
                     response["offlinemsg"] = msg_vec;
                     // 读取该用户的离线消息后，把该用户的所有离线消息删除掉
                     offline_msg_model_.Remove(id);
+                }
+                // 查询该用户的群组信息并返回
+                std::vector<Group> groupVec = group_model_.QueryGroups(id);
+                if (!groupVec.empty())
+                {
+                    std::vector<std::string> groupInfoVec;
+                    for (Group &group : groupVec)
+                    {
+                        nlohmann::json js;
+                        js["id"] = group.GetID();
+                        js["groupname"] = group.GetName();
+                        js["groupdesc"] = group.GetDesc();
+                        std::vector<std::string> groupUserVec;
+                        for (GroupUser &user : group.GetUsers())
+                        {
+                            nlohmann::json js2;
+                            js2["id"] = user.GetID();
+                            js2["name"] = user.GetName();
+                            js2["role"] = user.GetRole();
+                            js2["state"] = user.GetState();
+                            groupUserVec.push_back(js2.dump());
+                        }
+                        js["users"] = groupUserVec;
+                        groupInfoVec.push_back(js.dump());
+                    }
+                    response["groups"] = groupInfoVec;
                 }
 
                 conn->send(response.dump());
@@ -144,7 +172,7 @@ void ChatService::Register(const muduo::net::TcpConnectionPtr &conn, nlohmann::j
         response["msgid"] = REG_MSG_ACK;
         response["errno"] = 0;
         response["errmsg"] = "Register success!";
-        response["id"] = user.GetId();
+        response["id"] = user.GetID();
         conn->send(response.dump());
     }
     else
@@ -318,4 +346,49 @@ MsgHandler ChatService::GetHandler(int msgid)
     {
         return msg_handler_map_[msgid];
     }
+}
+
+void ChatService::LoginOut(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp)
+{
+    int userid = js["id"].get<int>();
+    {
+        std::lock_guard<std::mutex> lock(connection_mutex_);
+        auto it = user_connection_map_.find(userid);
+        if (it != user_connection_map_.end())
+        {
+            user_connection_map_.erase(it);
+        }
+    }
+    // 更新用户的状态信息
+    User user(userid, "", "", "offline");
+    usermodel_.updateState(user);
+}
+
+void ChatService::Reset()
+{
+    // 把所有在线用户的状态设置为离线
+    usermodel_.resetState();
+}
+
+// 处理客户端异常退出
+void ChatService::ClientCloseException(const muduo::net::TcpConnectionPtr &conn)
+{
+    User user;
+    {
+        std::lock_guard<std::mutex> lock(connection_mutex_);
+        for (auto it = user_connection_map_.begin(); it != user_connection_map_.end(); ++it)
+        {
+            if (it->second == conn)
+            {
+                // 从在线用户容器中删除用户
+                user.SetID(it->first);
+
+                user_connection_map_.erase(it);
+                break;
+            }
+        }
+    }
+    // 更新用户的状态信息为离线
+    user.SetState("offline");
+    usermodel_.updateState(user);
 }
