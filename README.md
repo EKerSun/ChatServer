@@ -11,6 +11,7 @@
 - Ubuntu-24.04
 - C++17
 ## 依赖
+- muduo
 - mysql
 - redis
 - nginx
