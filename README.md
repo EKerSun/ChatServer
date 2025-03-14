@@ -51,6 +51,7 @@
 ```mysql
 # 创建数据库
 CREATE DATABASE chat_database;
+# 需要先修改src/server/db/db.cpp的user和password
 # 使用数据库
 USE chat_database;
 # 执行脚本文件，如果有权限问题，需要chmod修改权限
