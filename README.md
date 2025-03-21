@@ -56,7 +56,7 @@ CREATE DATABASE chat_database;
 # 使用数据库
 USE chat_database;
 # 执行脚本文件，如果有权限问题，需要chmod修改权限
-source chat_database.sql；
+source chat_database.sql;
 ```
 ```bash
 # 修改nginx.conf配置文件
