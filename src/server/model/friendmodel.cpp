@@ -1,6 +1,6 @@
 #include "friendmodel.hpp"
 #include "db.hpp"
-
+#include <iostream>
 // 添加好友关系
 bool FriendModel::Insert(int userid, int friendid)
 {
@@ -8,13 +8,19 @@ bool FriendModel::Insert(int userid, int friendid)
     int min_id = std::min(userid, friendid);
     // 单向存储，较小id为id1,较大id为di2
     char sql[1024] = {0};
-    sprintf(sql, " INSERT INTO friendships (user_id1, user_id2) VALUES (%d, %d)", min_id, max_id);
+    sprintf(sql, "SELECT * FROM user WHERE id = %d", friendid);
     MySQL mysql;
     if (mysql.connect())
     {
-        if (mysql.update(sql))
+        MYSQL_RES *res = mysql.query(sql);
+        if (mysql_fetch_row(res) != nullptr)
         {
-            return true;
+            mysql_free_result(res);
+            sprintf(sql, "INSERT INTO friendships (user_id1, user_id2) VALUES (%d, %d)", min_id, max_id);
+            if (mysql.update(sql))
+                return true;
+            else
+                return false;
         }
     }
     return false;
@@ -42,10 +48,10 @@ std::vector<User> FriendModel::Query(int userid)
 {
     char sql[1024] = {0};
     sprintf(sql, "select a.id, a.name, a.state from user a inner join friendships b on case\
-            when b.user_id1 = %d then b.user_id2 \
-            when b.user_id2 = %d then b.user_id1 \
-            end where b.user_id1 = %d or b.user_id2 = %d",
-            userid, userid, userid, userid);
+            when b.user_id1 = %d then b.user_id2 = a.id \
+            when b.user_id2 = %d then b.user_id1 = a.id \
+            end",
+            userid, userid);
     std::vector<User> vec;
     MySQL mysql;
     if (mysql.connect())

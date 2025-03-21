@@ -26,14 +26,20 @@ bool GroupModel::AddGroup(int userid, int groupid, std::string role)
 {
     // 1.组装sql语句
     char sql[1024] = {0};
-    sprintf(sql, "insert into groupuser values(%d, %d, '%s')",
-            groupid, userid, role.c_str());
-
+    sprintf(sql, "SELECT * FROM allgroup WHERE id = %d", groupid);
     MySQL mysql;
     if (mysql.connect())
     {
-        mysql.update(sql);
-        return true;
+        MYSQL_RES *res = mysql.query(sql);
+        if (mysql_fetch_row(res) != nullptr)
+        {
+            mysql_free_result(res);
+            sprintf(sql, "insert into groupuser values(%d, %d, '%s')", groupid, userid, role.c_str());
+            if (mysql.update(sql))
+                return true;
+            else
+                return false;
+        }
     }
     return false;
 }

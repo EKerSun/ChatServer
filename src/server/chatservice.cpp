@@ -17,7 +17,7 @@ ChatService::ChatService()
     msg_handler_map_.insert({ADD_GROUP_MSG, std::bind(&ChatService::AddGroup, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     msg_handler_map_.insert({GROUP_CHAT_MSG, std::bind(&ChatService::GroupChat, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     // 下线
-    msg_handler_map_.insert({LOGINOUT_MSG, std::bind(&ChatService::LoginOut, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    msg_handler_map_.insert({LOGOUT_MSG, std::bind(&ChatService::LoginOut, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     if (redis_.connect())
     {
         // 设置上报消息的回调
@@ -94,7 +94,7 @@ void ChatService::Login(const muduo::net::TcpConnectionPtr &conn, nlohmann::json
                     user_connection_map_.insert({id, conn});
                 }
                 // id用户登录成功后，向redis订阅channel(id)
-                redis_.subscribe(id); 
+                redis_.subscribe(id);
                 // 登录成功，更新用户状态信息
                 user.SetState("online");
                 usermodel_.updateState(user);
@@ -164,7 +164,7 @@ void ChatService::Login(const muduo::net::TcpConnectionPtr &conn, nlohmann::json
 // 处理注册业务
 void ChatService::Register(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp time)
 {
-    // 业务处理：向redis写入注册信息
+
     LOG_INFO << "Do reg business!";
     std::string name = js["name"];
     std::string password = js["password"];
@@ -178,7 +178,7 @@ void ChatService::Register(const muduo::net::TcpConnectionPtr &conn, nlohmann::j
         nlohmann::json response;
         response["msgid"] = REG_MSG_ACK;
         response["errno"] = 0;
-        response["errmsg"] = "Register success!";
+        // response["errmsg"] = "Register success!";
         response["id"] = user.GetID();
         conn->send(response.dump());
     }
@@ -188,7 +188,7 @@ void ChatService::Register(const muduo::net::TcpConnectionPtr &conn, nlohmann::j
         nlohmann::json response;
         response["msgid"] = REG_MSG_ACK;
         response["errno"] = 1;
-        response["errmsg"] = "Register failed!";
+        // response["errmsg"] = "Register failed!";
         conn->send(response.dump());
     }
 }
@@ -206,8 +206,7 @@ void ChatService::AddFriend(const muduo::net::TcpConnectionPtr &conn, nlohmann::
     {
         nlohmann::json response;
         response["msgid"] = ADD_FRIEND_MSG_ACK;
-        response["errno"] = 1;
-        response["errmsg"] = "Already friends or wrong user!";
+        response["errno"] = 1; // 添加好友失败
         conn->send(response.dump());
     }
     else
@@ -215,14 +214,14 @@ void ChatService::AddFriend(const muduo::net::TcpConnectionPtr &conn, nlohmann::
         nlohmann::json response;
         response["msgid"] = ADD_FRIEND_MSG_ACK;
         response["errno"] = 0;
-        response["errmsg"] = "Add friend success!";
+        response["friendid"] = friendid;
         conn->send(response.dump());
     }
 }
 // 删除好友业务
 void ChatService::DeleteFriend(const muduo::net::TcpConnectionPtr &conn, nlohmann::json &js, muduo::Timestamp)
 {
-    LOG_INFO << "Add friend business!";
+    LOG_INFO << "Delete friend business!";
     int userid = js["id"].get<int>();
     int friendid = js["friendid"].get<int>();
 
@@ -231,7 +230,6 @@ void ChatService::DeleteFriend(const muduo::net::TcpConnectionPtr &conn, nlohman
         nlohmann::json response;
         response["msgid"] = DELETE_FRIEND_MSG_ACK;
         response["errno"] = 1;
-        response["errmsg"] = "wrong user!";
         conn->send(response.dump());
     }
     else
@@ -239,7 +237,7 @@ void ChatService::DeleteFriend(const muduo::net::TcpConnectionPtr &conn, nlohman
         nlohmann::json response;
         response["msgid"] = DELETE_FRIEND_MSG_ACK;
         response["errno"] = 0;
-        response["errmsg"] = "Delete friend success!";
+        response["friendid"] = friendid;
         conn->send(response.dump());
     }
 }
@@ -258,14 +256,13 @@ void ChatService::OneChat(const muduo::net::TcpConnectionPtr &conn, nlohmann::js
         }
     }
 
-    // 查询toid是否在线 
+    // 查询toid是否在线
     User user = usermodel_.query(toid);
     if (user.GetState() == "online")
     {
         redis_.publish(toid, js.dump());
         return;
     }
-
 
     // toid不在线，存储离线消息
     offline_msg_model_.Insert(toid, js.dump());
@@ -285,7 +282,6 @@ void ChatService::CreateGroup(const muduo::net::TcpConnectionPtr &conn, nlohmann
         nlohmann::json response;
         response["msgid"] = CREATE_GROUP_MSG_ACK;
         response["errno"] = 1;
-        response["errmsg"] = "create group error!";
         conn->send(response.dump());
         // 存储群组创建人信息
     }
@@ -295,7 +291,7 @@ void ChatService::CreateGroup(const muduo::net::TcpConnectionPtr &conn, nlohmann
         nlohmann::json response;
         response["msgid"] = CREATE_GROUP_MSG_ACK;
         response["errno"] = 0;
-        response["errmsg"] = "create group success!";
+        response["groupid"] = group.GetID();
         conn->send(response.dump());
     }
 }
@@ -310,7 +306,6 @@ void ChatService::AddGroup(const muduo::net::TcpConnectionPtr &conn, nlohmann::j
         nlohmann::json response;
         response["msgid"] = ADD_GROUP_MSG_ACK;
         response["errno"] = 1;
-        response["errmsg"] = "add group error!";
         conn->send(response.dump());
     }
     else
@@ -318,7 +313,7 @@ void ChatService::AddGroup(const muduo::net::TcpConnectionPtr &conn, nlohmann::j
         nlohmann::json response;
         response["msgid"] = ADD_GROUP_MSG_ACK;
         response["errno"] = 0;
-        response["errmsg"] = "add group success!";
+        response["groupid"] = groupid;
         conn->send(response.dump());
     }
 }
@@ -385,7 +380,7 @@ void ChatService::LoginOut(const muduo::net::TcpConnectionPtr &conn, nlohmann::j
         }
     }
     // 用户注销，相当于就是下线，在redis中取消订阅通道
-    redis_.unsubscribe(userid); 
+    redis_.unsubscribe(userid);
     // 更新用户的状态信息
     User user(userid, "", "", "offline");
     usermodel_.updateState(user);
@@ -416,7 +411,7 @@ void ChatService::ClientCloseException(const muduo::net::TcpConnectionPtr &conn)
         }
     }
     // 用户注销，相当于就是下线，在redis中取消订阅通道
-    redis_.unsubscribe(user.GetID()); 
+    redis_.unsubscribe(user.GetID());
     // 更新用户的状态信息为离线
     user.SetState("offline");
     usermodel_.updateState(user);
