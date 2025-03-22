@@ -20,13 +20,17 @@
 ```
 .
 ├── CMakeLists.txt
-├── bin                        # 可执行文件
+├── README.md
+├── bin
 │   ├── ChatClient
 │   └── ChatServer
-├── build                      # make目录          
+├── build
 │   └── Makefile
-├── chat_database.sql          # nysql 脚本文件
-├── include                    # 头文件
+├── chat_database.sql
+├── include
+│   ├── client
+│   │   ├── chatclient.hpp
+│   │   └── clientservice.hpp
 │   ├── public.hpp
 │   └── server
 │       ├── chatserver.hpp
@@ -34,12 +38,15 @@
 │       ├── db
 │       ├── model
 │       └── redis
-└── src                        # 源文件
+├── nginx.conv
+└── src
     ├── CMakeLists.txt
-    ├── client                 # 客户端
+    ├── client
     │   ├── CMakeLists.txt
+    │   ├── chatclient.cpp
+    │   ├── clientservice.cpp
     │   └── main.cpp
-    └── server                 # 服务端
+    └── server
         ├── CMakeLists.txt
         ├── chatserver.cpp
         ├── chatservice.cpp
@@ -75,7 +82,7 @@ cd bin
 ./ChatClient 127.0.0.1 8000
 ```
 ## 更新记录
-3.22-封装完善客户端
+3.22-封装完善客户端, 优化客户端命令输入体验；修改服务端，防止向非好友和未加群聊天
 
 
 
